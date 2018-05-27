@@ -4,8 +4,7 @@
  */
 type Pos = (u32, u32);
 #[derive(Clone, PartialEq, Eq)]
-struct Player {
-}
+struct Player {}
 #[derive(Clone)]
 struct Fleet {
     ships: u32,
@@ -31,7 +30,6 @@ fn distance(a: &Planet, b: &Planet) -> u32 {
     (dx * dx + dy * dy).sqrt().ceil() as u32
 }
 
-
 #[derive(Clone)]
 struct Game {
     planets: Vec<Planet>,
@@ -53,18 +51,21 @@ impl Game {
     pub fn current_player(&self) -> &Player {
         &self.players[self.current_player_index]
     }
-    pub fn send_fleet(&mut self,
-                     source_planet_id: usize,
-                     dest_planet_id: usize,
-                     count: u32)
-        -> Result<(), CouldNotSend>
-    {
+    pub fn send_fleet(
+        &mut self,
+        source_planet_id: usize,
+        dest_planet_id: usize,
+        count: u32,
+    ) -> Result<(), CouldNotSend> {
         if self.planets[source_planet_id].ships < count {
             Err(CouldNotSend::NotEnoughShips)
         } else if self.planets[source_planet_id].owner != Some(self.current_player_index) {
             Err(CouldNotSend::NotYourPlanet)
         } else {
-            let dist = distance(&self.planets[source_planet_id], &self.planets[dest_planet_id]);
+            let dist = distance(
+                &self.planets[source_planet_id],
+                &self.planets[dest_planet_id],
+            );
             let source_planet = &mut self.planets[source_planet_id];
             source_planet.ships -= count;
             let fleet: Fleet = Fleet {
@@ -89,14 +90,14 @@ impl Game {
             }
         }
     }
-    pub fn new(w: u32,
-               h: u32,
-               players: Vec<Player>,
-               neutral_planets: u32)
-        -> Result<Game, CouldNotCreateGame>
-    {
+    pub fn new(
+        w: u32,
+        h: u32,
+        players: Vec<Player>,
+        neutral_planets: u32,
+    ) -> Result<Game, CouldNotCreateGame> {
         if players.len() as u32 + neutral_planets > w * h {
-            return Err(CouldNotCreateGame::TooManyPlanets)
+            return Err(CouldNotCreateGame::TooManyPlanets);
         }
         let planets = Vec::new();
         Ok(Game {
