@@ -288,7 +288,14 @@ Owner: {}
                 return self.send_fleet(src, dest, count).map_err(|e| e.to_string());
             },
             "d" => {
-                return Ok(()); // TODO
+                if tokens.len() != 3 {
+                    return Err("Need exactly two planets to compute distance between".to_string());
+                }
+                let src = self.get_planet_index(&tokens[1])?;
+                let dest = self.get_planet_index(&tokens[2])?;
+                let d = distance(&self.planets[src], &self.planets[dest]);
+                println!("Distance between planets is {}", d);
+                return Ok(());
             }
             _ => return Err("No command".to_string())
         }
