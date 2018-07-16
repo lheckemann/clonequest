@@ -100,7 +100,7 @@ impl Game {
     pub fn end_turn(&mut self) {
         self.current_player_index = (self.current_player_index + 1) % self.players.len();
         if self.current_player_index == 0 {
-            for planet in self.planets.iter_mut() {
+            for planet in self.planets.iter_mut().filter(|p| p.owner != None) {
                 planet.ships += planet.production;
             }
             for fleet in self.fleets.iter_mut() {
