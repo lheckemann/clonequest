@@ -161,7 +161,7 @@ impl Game {
         let mut positions = sample_slice(&mut rng, &available_positions, total_planets as usize);
         for (id, _player) in players.iter().enumerate() {
             planets.push(Planet {
-                ships: 0,
+                ships: 10,
                 strength: 40,
                 production: 10,
                 pos: positions.pop().expect("Not enough positions!?"),
