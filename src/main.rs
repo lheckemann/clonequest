@@ -75,10 +75,10 @@ impl Game {
         dest_planet_id: usize,
         count: usize,
     ) -> Result<(), CouldNotSend> {
-        if self.planets[source_planet_id].ships < count {
-            Err(CouldNotSend::NotEnoughShips)
-        } else if self.planets[source_planet_id].owner != Some(self.current_player_index) {
+        if self.planets[source_planet_id].owner != Some(self.current_player_index) {
             Err(CouldNotSend::NotYourPlanet)
+        } else if self.planets[source_planet_id].ships < count {
+            Err(CouldNotSend::NotEnoughShips)
         } else {
             let dist = distance(
                 &self.planets[source_planet_id],
