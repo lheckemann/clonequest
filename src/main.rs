@@ -264,7 +264,18 @@ Player {}: ", self.current_player_index);
                 return Ok(());
             },
             "i" => {
-                return Ok(()); //TODO
+                if tokens.len() != 2 {
+                    return Err("Need exactly one planet to get information on".to_string());
+                }
+                let p = self.get_planet_index(&tokens[1])?;
+                let p = &self.planets[p];
+                println!("
+Ships: {}
+Strength: {}
+Production: {}
+Owner: {}
+", p.ships, p.strength, p.production, p.owner.map(|i| format!("Player {}", i)).unwrap_or("Neutral".to_string()));
+                return Ok(());
             },
             "s" => {
                 if tokens.len() != 4 {
