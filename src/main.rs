@@ -1,6 +1,7 @@
 extern crate rand;
 use std::collections::HashSet;
 use std::io;
+use std::io::Write;
 use std::fmt;
 use rand::{thread_rng, Rng};
 use rand::seq::sample_slice;
@@ -235,16 +236,21 @@ impl Game {
 
     fn do_turn(&mut self) {
         let mut input = String::new();
-        println!("
+        self.print();
+        print!("
 s A B n - send n ships from A to B
 d A B - distance between A and B
 i - info on planets
 n - next
-");
+Player {}: ", self.current_player_index);
+        io::stdout().flush();
 
         match io::stdin().read_line(&mut input) {
-            Ok(_) => { self.do_command(input.split_whitespace().map(|s| s.to_string()).collect()); },
-            Err(e) => ()  // handle error, e is IoError
+            Ok(_) => {
+                let cmd = self.do_command(input.split_whitespace().map(|s| s.to_string()).collect());
+                cmd.unwrap_or_else(|e| println!("{}", e));
+            },
+            Err(e) => ()  // TODO: handle error, e is IoError
         }
     }
 
