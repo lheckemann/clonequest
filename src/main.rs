@@ -115,20 +115,20 @@ impl Game {
                             // defender roll
                             if thread_rng().gen_bool(dest_planet.strength as f64 / 100.0) {
                                 fleet.ships -= 1;
-                            }
-                            // defender wins
-                            if fleet.ships <= 0 {
-                                break;
+                                // defender wins
+                                if fleet.ships <= 0 {
+                                    break;
+                                }
                             }
                             // attacker roll
                             if thread_rng().gen_bool(fleet.strength as f64 / 100.0) {
+                                // attacker wins
+                                if dest_planet.ships <= 0 {
+                                    dest_planet.owner = Some(fleet.owner);
+                                    dest_planet.ships = fleet.ships;
+                                    break;
+                                }
                                 dest_planet.ships -= 1;
-                            }
-                            // attacker wins
-                            if dest_planet.ships <= 0 {
-                                dest_planet.owner = Some(fleet.owner);
-                                dest_planet.ships = fleet.ships;
-                                break;
                             }
                         }
                     }
