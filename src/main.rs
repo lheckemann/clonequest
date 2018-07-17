@@ -215,6 +215,10 @@ impl Game {
         }
     }
 
+    fn planet_name(&self, index: usize) -> Option<char> {
+        PLANET_NAMES.chars().nth(index)
+    }
+
     fn get_planet_index(&self, name : &String) -> Result<usize, String> {
         if name.len() != 1 {
             Err("Planet names are a single character".to_string())
@@ -253,7 +257,7 @@ Player {}: ", self.current_player_index);
         }
     }
 
-    fn do_command(&mut self, tokens: Vec<String>) -> Result<(), String>{
+    fn do_command(&mut self, tokens: Vec<String>) -> Result<(), String> {
         if tokens.len() < 1 {
             return Err("No command provided".to_string())
         }
@@ -263,17 +267,25 @@ Player {}: ", self.current_player_index);
                 return Ok(());
             },
             "i" => {
-                if tokens.len() != 2 {
-                    return Err("Need exactly one planet to get information on".to_string());
+                println!(" Planet | Ships  | Power  | Prod   | Owner");
+                let print_planet = |(planet_index, planet): (usize, &Planet)| {
+                    println!(" {: ^6} | {: >6} | {: >6} | {: >6} | {}",
+                            self.planet_name(planet_index).unwrap_or('.'),
+                            planet.ships,
+                            planet.strength,
+                            planet.production,
+                            planet.owner.map(|i| i.to_string()).unwrap_or("N".to_string())
+                    )
+                };
+                let mut chosen = tokens.iter().skip(1).map(|tok| {
+                    let planet_index = self.get_planet_index(tok).map_err(|e| println!("Planet {}: {}, skipping", tok, e));
+                    planet_index.map(|i| (i, &self.planets[i])).ok()
+                }).filter_map(|x| x).peekable();
+                if chosen.peek().is_some() {
+                    chosen.for_each(print_planet)
+                } else {
+                    self.planets.iter().enumerate().for_each(print_planet)
                 }
-                let p = self.get_planet_index(&tokens[1])?;
-                let p = &self.planets[p];
-                println!("
-Ships: {}
-Strength: {}
-Production: {}
-Owner: {}
-", p.ships, p.strength, p.production, p.owner.map(|i| format!("Player {}", i)).unwrap_or("Neutral".to_string()));
                 return Ok(());
             },
             "s" => {
