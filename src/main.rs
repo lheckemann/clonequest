@@ -228,7 +228,6 @@ impl Game {
 
 
     pub fn play(&mut self) {
-        self.print();
         while self.get_winner().is_none() {
             self.do_turn();
         }
