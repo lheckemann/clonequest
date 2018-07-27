@@ -203,7 +203,7 @@ impl Game {
     pub fn print(&self) {
         for y in 0..self.h {
             for x in 0..self.w {
-                print!("{}",
+                print!("│{}",
                 self.planets.iter()
                             .zip(PLANET_NAMES.chars())
                             .filter(|(p, _)| p.pos == (x, y))
@@ -212,7 +212,7 @@ impl Game {
                             .unwrap_or(" ".to_string())
                             );
             }
-            println!("")
+            println!("│")
         }
     }
 
