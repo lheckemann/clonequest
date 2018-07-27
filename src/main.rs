@@ -7,7 +7,7 @@ use rand::{thread_rng, Rng};
 use rand::seq::sample_slice;
 use rand::distributions::Binomial;
 
-/* 
+/*
    Map<Player, Planet>
    Map<Player, Fleet>
  */
@@ -245,7 +245,8 @@ impl Game {
 s A B n - send n ships from A to B
 d A B - distance between A and B
 i - info on planets
-n - next
+i A B … - info on specific planets
+n - finish turn
 Player {}: ", self.current_player_index);
         io::stdout().flush();
 
