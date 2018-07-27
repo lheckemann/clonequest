@@ -36,7 +36,8 @@ fn distance(a: &Planet, b: &Planet) -> usize {
     let (xb, yb) = b.pos;
     let dx = (xa as f32 - xb as f32).abs();
     let dy = (ya as f32 - yb as f32).abs();
-    (dx * dx + dy * dy).sqrt().ceil() as usize
+    // Divide distance by 2 since the game pace is pretty slow otherwise
+    ((dx * dx + dy * dy).sqrt() * 0.5).ceil() as usize
 }
 const PLANET_NAMES : &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
