@@ -216,8 +216,8 @@ impl Game {
         }
     }
 
-    fn planet_name(&self, index: usize) -> Option<char> {
-        PLANET_NAMES.chars().nth(index)
+    fn planet_name(&self, index: usize) -> Option<String> {
+        PLANET_NAMES.chars().take(self.planets.len()).nth(index).map(|c| c.to_string())
     }
 
     fn get_planet_index(&self, name : &String) -> Result<usize, String> {
@@ -243,7 +243,8 @@ impl Game {
         self.print();
         print!("
 s A B n - send n ships from A to B
-d A B - distance between A and B
+d - show distances between all planets
+d A B C … - show distance for trips between A, B, C…
 i - info on planets
 i A B … - info on specific planets
 n - finish turn
@@ -272,17 +273,17 @@ Player {}: ", self.current_player_index);
                 println!(" Planet | Ships  | Power  | Prod   | Owner");
                 let print_planet = |(planet_index, planet): (usize, &Planet)| {
                     println!(" {: ^6} | {: >6} | {: >6} | {: >6} | {}",
-                            self.planet_name(planet_index).unwrap_or('.'),
+                            self.planet_name(planet_index).unwrap_or(".".to_string()),
                             planet.ships,
                             planet.strength,
                             planet.production,
                             planet.owner.map(|i| i.to_string()).unwrap_or("N".to_string())
                     )
                 };
-                let mut chosen = tokens.iter().skip(1).map(|tok| {
+                let mut chosen = tokens.iter().skip(1).filter_map(|tok| {
                     let planet_index = self.get_planet_index(tok).map_err(|e| println!("Planet {}: {}, skipping", tok, e));
                     planet_index.map(|i| (i, &self.planets[i])).ok()
-                }).filter_map(|x| x).peekable();
+                }).peekable();
                 if chosen.peek().is_some() {
                     chosen.for_each(print_planet)
                 } else {
@@ -301,17 +302,41 @@ Player {}: ", self.current_player_index);
                 return self.send_fleet(src, dest, count).map_err(|e| e.to_string());
             },
             "d" => {
-                if tokens.len() != 3 {
-                    return Err("Need exactly two planets to compute distance between".to_string());
+                let mut chosen : Vec<usize> = tokens.iter().skip(1).filter_map(|tok| {
+                    self.get_planet_index(tok).map_err(|e| println!("Planet {}: {}, skipping", tok, e)).ok()
+                }).collect();
+                if chosen.is_empty() {
+                    self.show_distances();
+                } else {
+                    self.show_distances_for(chosen);
                 }
-                let src = self.get_planet_index(&tokens[1])?;
-                let dest = self.get_planet_index(&tokens[2])?;
-                let d = distance(&self.planets[src], &self.planets[dest]);
-                println!("Distance between planets is {}", d);
                 return Ok(());
             }
             _ => return Err("No command".to_string())
         }
+    }
+
+    pub fn show_distances(&self) {
+        self.show_distances_for((0..self.planets.len()).collect())
+    }
+
+    pub fn show_distances_for(&self, planets: Vec<usize>) {
+        print!("\\|");
+        for p in planets.iter() {
+            print!("{: ^3}|", self.planet_name(*p).unwrap());
+        }
+        for p1 in planets.iter() {
+            print!("\n{}|", self.planet_name(*p1).unwrap());
+            for p2 in planets.iter() {
+                let d = distance(&self.planets[*p1], &self.planets[*p2]);
+                if p1 != p2 {
+                    print!("{: >3}|", d);
+                } else {
+                    print!("   |");
+                }
+            }
+        }
+        print!("\n\n");
     }
 }
 
