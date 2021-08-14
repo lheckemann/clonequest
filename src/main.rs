@@ -1,11 +1,12 @@
 extern crate rand;
+extern crate rand_distr;
 use std::collections::HashSet;
 use std::io;
 use std::io::Write;
 use std::fmt;
 use rand::{thread_rng, Rng};
-use rand::seq::sample_slice;
-use rand::distributions::Binomial;
+use rand::seq::SliceRandom;
+use rand_distr::Binomial;
 
 /*
    Map<Player, Planet>
@@ -154,38 +155,37 @@ impl Game {
         }
         let mut planets = Vec::new();
         let mut rng = thread_rng();
-        let mut available_positions: Vec<Pos> = Vec::new();
-        for x in 0..w {
-            for y in 0..h {
-                available_positions.push((x, y));
-            }
-        }
-        let mut positions = sample_slice(&mut rng, &available_positions, total_planets as usize);
+        let all_positions: Vec<Pos> = (0..w).flat_map(|x| {
+            (0..h).map(move |y| {
+                (x, y)
+            })
+        }).collect();
+        let mut positions = all_positions.choose_multiple(&mut rng, total_planets as usize);
         for (id, _player) in players.iter().enumerate() {
             planets.push(Planet {
                 ships: 10,
                 strength: 40,
                 production: 10,
-                pos: positions.pop().expect("Not enough positions!?"),
+                pos: *positions.next().expect("Not enough positions!?"),
                 owner: Some(id),
             });
         }
-        let strength_distribution = Binomial::new(100, 0.55);
-        let production_distribution = Binomial::new(10, 0.5);
-        positions.drain(..).map(|pos| Planet {
+        let strength_distribution = Binomial::new(100, 0.55).expect("Static binomial parameters should be ok!");
+        let production_distribution = Binomial::new(10, 0.5).expect("Static binomial parameters should be ok!");
+        positions.map(|pos| Planet {
             ships: 0,
             strength: rng.sample(strength_distribution) as usize,
             production: rng.sample(production_distribution) as usize + 5,
-            pos: pos,
+            pos: *pos,
             owner: None,
         }).for_each(|p| planets.push(p));
         Ok(Game {
-            planets: planets,
-            players: players,
+            planets,
+            players,
             fleets: Vec::new(),
             current_player_index: 0,
-            w: w,
-            h: h,
+            w,
+            h,
         })
     }
 
@@ -302,7 +302,7 @@ Player {}: ", self.current_player_index);
                 return self.send_fleet(src, dest, count).map_err(|e| e.to_string());
             },
             "d" => {
-                let mut chosen : Vec<usize> = tokens.iter().skip(1).filter_map(|tok| {
+                let chosen : Vec<usize> = tokens.iter().skip(1).filter_map(|tok| {
                     self.get_planet_index(tok).map_err(|e| println!("Planet {}: {}, skipping", tok, e)).ok()
                 }).collect();
                 if chosen.is_empty() {
