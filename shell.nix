@@ -1,4 +1,4 @@
 with import <nixpkgs> {};
 mkShell {
-  buildInputs = [ cargo rustc ];
+  buildInputs = [ cargo rustc rust-analyzer ];
 }
