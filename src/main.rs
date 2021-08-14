@@ -164,24 +164,24 @@ impl Game {
         }
         messages
     }
-    pub fn new(
+    pub fn new<R: Rng>(
         w: usize,
         h: usize,
         players: Vec<Player>,
         neutral_planets: usize,
+        rng: &mut R
     ) -> Result<Game, CouldNotCreateGame> {
         let total_planets = players.len() as usize + neutral_planets;
         if total_planets > w * h {
             return Err(CouldNotCreateGame::TooManyPlanets);
         }
         let mut planets = Vec::new();
-        let mut rng = thread_rng();
         let all_positions: Vec<Pos> = (0..w).flat_map(|x| {
             (0..h).map(move |y| {
                 (x, y)
             })
         }).collect();
-        let mut positions = all_positions.choose_multiple(&mut rng, total_planets as usize);
+        let mut positions = all_positions.choose_multiple(rng, total_planets as usize);
         for (id, _player) in players.iter().enumerate() {
             planets.push(Planet {
                 ships: 10,
@@ -386,9 +386,12 @@ Player {}: ", self.players[self.current_player_index].name);
 }
 
 fn main() {
-    let mut g = Game::new(8, 8, vec![
-        Player {name: "Alice".into()}, Player {name: "Bob".into()}, Player {name: "Charlotte".into()}
-    ], 5).unwrap();
+    let players = vec![
+        Player {name: "Alice".into()},
+        Player {name: "Bob".into()},
+        Player {name: "Charlotte".into()},
+    ];
+    let mut g = Game::new(8, 8, players, 5, &mut thread_rng()).unwrap();
     g.show_distances();
     g.play();
 }
