@@ -14,7 +14,9 @@ use rand_distr::Binomial;
  */
 type Pos = (usize, usize);
 #[derive(Clone, PartialEq, Eq)]
-struct Player {}
+struct Player {
+    name: String
+}
 #[derive(Clone)]
 struct Fleet {
     ships: usize,
@@ -68,6 +70,12 @@ enum CouldNotCreateGame {
     TooManyPlanets,
 }
 
+enum Message {
+    AttackFailed(Fleet),
+    AttackSucceeded(Fleet),
+    ReinforcementsArrived(Fleet),
+}
+
 impl Game {
     pub fn current_player(&self) -> &Player {
         &self.players[self.current_player_index]
@@ -100,7 +108,8 @@ impl Game {
             Ok(())
         }
     }
-    pub fn end_turn(&mut self) {
+    pub fn end_turn(&mut self) -> Vec<Message> {
+        let mut messages = Vec::new();
         self.current_player_index = (self.current_player_index + 1) % self.players.len();
         if self.current_player_index == 0 {
             for planet in self.planets.iter_mut().filter(|p| p.owner != None) {
@@ -111,7 +120,7 @@ impl Game {
                 if fleet.turns_to_arrival == 0 {
                     let mut dest_planet = &mut self.planets[fleet.destination];
                     if Some(fleet.owner) == dest_planet.owner {
-                        // TODO: work out messaging
+                        messages.push(Message::ReinforcementsArrived(fleet.clone()));
                         dest_planet.ships += fleet.ships
                     } else {
                         loop {
@@ -120,6 +129,7 @@ impl Game {
                                 fleet.ships -= 1;
                                 // defender wins
                                 if fleet.ships <= 0 {
+                                    messages.push(Message::AttackFailed(fleet.clone()));
                                     break;
                                 }
                             }
@@ -129,6 +139,7 @@ impl Game {
                                 if dest_planet.ships <= 0 {
                                     dest_planet.owner = Some(fleet.owner);
                                     dest_planet.ships = fleet.ships;
+                                    messages.push(Message::AttackSucceeded(fleet.clone()));
                                     break;
                                 }
                                 dest_planet.ships -= 1;
@@ -142,6 +153,7 @@ impl Game {
                                         .collect();
             self.fleets = new_fleets;
         }
+        messages
     }
     pub fn new(
         w: usize,
@@ -248,7 +260,7 @@ d A B C … - show distance for trips between A, B, C…
 i - info on planets
 i A B … - info on specific planets
 n - finish turn
-Player {}: ", self.current_player_index);
+Player {}: ", self.players[self.current_player_index].name);
         io::stdout().flush();
 
         match io::stdin().read_line(&mut input) {
@@ -266,7 +278,24 @@ Player {}: ", self.current_player_index);
         }
         match tokens[0].as_str() {
             "n" => {
-                self.end_turn();
+                for message in self.end_turn() {
+                    match message {
+                        Message::AttackFailed(fleet) => {
+                            let player = &self.players[fleet.owner].name;
+                            let planet = self.planet_name(fleet.destination).unwrap_or("<unknown>".into());
+                            println!("Fleet from player {} failed to take planet {}.", player, planet);
+                        }
+                        Message::AttackSucceeded(fleet) => {
+                            let player = &self.players[fleet.owner].name;
+                            let planet = self.planet_name(fleet.destination).unwrap_or("<unknown>".into());
+                            println!("Fleet from player {} took over planet {}!", player, planet);
+                        }
+                        Message::ReinforcementsArrived(fleet) => {
+                            let planet = self.planet_name(fleet.destination).unwrap_or("<unknown>".into());
+                            println!("Reinforcements of {} ships have arrived at planet {}.", fleet.ships, planet);
+                        }
+                    }
+                }
                 return Ok(());
             },
             "i" => {
@@ -277,7 +306,7 @@ Player {}: ", self.current_player_index);
                             planet.ships,
                             planet.strength,
                             planet.production,
-                            planet.owner.map(|i| i.to_string()).unwrap_or("N".to_string())
+                            planet.owner.map(|i| self.players[i].name.clone()).unwrap_or("-".into())
                     )
                 };
                 let mut chosen = tokens.iter().skip(1).filter_map(|tok| {
@@ -341,5 +370,9 @@ Player {}: ", self.current_player_index);
 }
 
 fn main() {
-    Game::new(10, 5, vec![Player {}, Player {}, Player {}], 5).unwrap().play();
+    let mut g = Game::new(8, 8, vec![
+        Player {name: "Alice".into()}, Player {name: "Bob".into()}, Player {name: "Charlotte".into()}
+    ], 5).unwrap();
+    g.show_distances();
+    g.play();
 }
