@@ -74,6 +74,7 @@ enum Message {
     AttackFailed(Fleet),
     AttackSucceeded(Fleet),
     ReinforcementsArrived(Fleet),
+    PlayerEliminated(Player),
 }
 
 impl Game {
@@ -112,6 +113,7 @@ impl Game {
         let mut messages = Vec::new();
         self.current_player_index = (self.current_player_index + 1) % self.players.len();
         if self.current_player_index == 0 {
+            let alive_before = self.remaining_players();
             for planet in self.planets.iter_mut().filter(|p| p.owner != None) {
                 planet.ships += planet.production;
             }
@@ -151,6 +153,13 @@ impl Game {
             let new_fleets = self.fleets.drain(..)
                                         .filter(|f| f.turns_to_arrival > 0 && f.ships > 0)
                                         .collect();
+
+            let alive_after = self.remaining_players();
+            alive_before
+                .difference(&alive_after)
+                .for_each(|player_index| {
+                    messages.push(Message::PlayerEliminated(self.players[*player_index].clone()));
+                });
             self.fleets = new_fleets;
         }
         messages
@@ -201,12 +210,16 @@ impl Game {
         })
     }
 
-    fn get_winner(&self) -> Option<usize> {
+    fn remaining_players(&self) -> HashSet<usize> {
         let players_with_planets : HashSet<usize> = self.planets.iter().filter_map(|p| p.owner).collect();
         let players_with_fleets : HashSet<usize> = self.fleets.iter().map(|f| f.owner).collect();
-        let remaining_players : Vec<&usize> = players_with_planets.union(&players_with_fleets).collect();
-        if remaining_players.len() == 1 {
-            Some(*remaining_players[0])
+        players_with_planets.union(&players_with_fleets).map(|p| *p).collect()
+    }
+
+    fn get_winner(&self) -> Option<usize> {
+        let players = self.remaining_players();
+        if players.len() == 1 {
+            Some(*players.iter().next().unwrap())
         } else {
             None
         }
@@ -293,6 +306,9 @@ Player {}: ", self.players[self.current_player_index].name);
                         Message::ReinforcementsArrived(fleet) => {
                             let planet = self.planet_name(fleet.destination).unwrap_or("<unknown>".into());
                             println!("Reinforcements of {} ships have arrived at planet {}.", fleet.ships, planet);
+                        }
+                        Message::PlayerEliminated(player) => {
+                            println!("Player {} was eliminated!", player.name);
                         }
                     }
                 }
