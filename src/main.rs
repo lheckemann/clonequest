@@ -277,11 +277,11 @@ Player {}: ", self.players[self.current_player_index].name);
         io::stdout().flush();
 
         match io::stdin().read_line(&mut input) {
-            Ok(_) => {
+            Ok(count) if count > 0 => {
                 let cmd = self.do_command(input.split_whitespace().map(|s| s.to_string()).collect());
                 cmd.unwrap_or_else(|e| println!("{}", e));
             },
-            Err(e) => ()  // TODO: handle error, e is IoError
+            _ => panic!("Could not get input"),
         }
     }
 
