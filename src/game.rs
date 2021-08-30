@@ -2,7 +2,15 @@ use std::collections::HashSet;
 use rand::{Rng, thread_rng};
 use rand::seq::SliceRandom;
 use rand_distr::Binomial;
+
 type Pos = (usize, usize);
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PlayerId(usize);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PlanetId(usize);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FleetId(usize);
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Player {
@@ -13,8 +21,8 @@ pub struct Fleet {
     pub ships: usize,
     pub strength: usize,
     pub turns_to_arrival: usize,
-    pub destination: usize,
-    pub owner: usize,
+    pub destination: PlanetId,
+    pub owner: PlayerId,
 }
 
 #[derive(Clone)]
@@ -24,13 +32,13 @@ pub struct Planet {
     pub strength: usize,
     pub production: usize,
     pub pos: Pos,
-    pub owner: Option<usize>,
+    pub owner: Option<PlayerId>,
 }
 
 #[derive(Clone)]
 struct SendShipsCommand {
-    source_planet_id: usize,
-    destination_planet_id: usize,
+    source_planet_id: PlanetId,
+    destination_planet_id: PlanetId,
     count: usize,
 }
 
@@ -49,7 +57,7 @@ pub struct Game {
     _planets: Vec<Planet>,
     _players: Vec<Player>,
     _fleets: Vec<Fleet>,
-    _queued_commands: Vec<(usize, SendShipsCommand)>,
+    _queued_commands: Vec<(PlayerId, SendShipsCommand)>,
     _w: usize,
     _h: usize,
 }
@@ -80,22 +88,22 @@ impl Game {
         for planet in self._planets.iter_mut().filter(|p| p.owner != None) {
             planet.ships += planet.production;
         }
-        for (player, command) in self._queued_commands.iter() {
-            self._planets[command.source_planet_id].ships -= command.count;
-            let source_planet = &self._planets[command.source_planet_id];
-            let destination_planet = &self._planets[command.destination_planet_id];
+        for (player, command) in self._queued_commands.drain(..) {
+            self._planets[command.source_planet_id.0].ships -= command.count;
+            let source_planet = &self._planets[command.source_planet_id.0];
+            let destination_planet = &self._planets[command.destination_planet_id.0];
             self._fleets.push(Fleet {
                 ships: command.count,
                 strength: source_planet.strength,
                 turns_to_arrival: distance(source_planet, destination_planet),
                 destination: command.destination_planet_id,
-                owner: *player,
+                owner: player,
             });
         }
         for fleet in self._fleets.iter_mut() {
             fleet.turns_to_arrival -= 1;
             if fleet.turns_to_arrival == 0 {
-                let mut dest_planet = &mut self._planets[fleet.destination];
+                let mut dest_planet = &mut self._planets[fleet.destination.0];
                 if Some(fleet.owner) == dest_planet.owner {
                     messages.push(Message::ReinforcementsArrived(fleet.clone()));
                     dest_planet.ships += fleet.ships
@@ -133,7 +141,7 @@ impl Game {
         alive_before
             .difference(&alive_after)
             .for_each(|player_index| {
-                messages.push(Message::PlayerEliminated(self._players[*player_index].clone()));
+                messages.push(Message::PlayerEliminated(self._players[player_index.0].clone()));
             });
         self._fleets = new_fleets;
         messages
@@ -165,7 +173,7 @@ impl Game {
                 strength: 40,
                 production: 10,
                 pos: *positions.next().expect("Not enough positions!?"),
-                owner: Some(id),
+                owner: Some(PlayerId(id)),
             });
         }
         let strength_distribution = Binomial::new(100, 0.55).expect("Static binomial parameters should be ok!");
@@ -190,22 +198,22 @@ impl Game {
 
     pub fn queue_fleet(
         &mut self,
-        player_id: usize,
-        source_planet_id: usize,
-        destination_planet_id: usize,
+        player_id: PlayerId,
+        source_planet_id: PlanetId,
+        destination_planet_id: PlanetId,
         count: usize,
     ) -> Result<(), CouldNotSend> {
-        if self._planets.len() <= source_planet_id || self._planets.len() <= destination_planet_id {
+        if self._planets.len() <= source_planet_id.0 || self._planets.len() <= destination_planet_id.0 {
             return Err(CouldNotSend::NoSuchPlanet)
         }
-        if self._planets[source_planet_id].owner != Some(player_id) {
+        if self._planets[source_planet_id.0].owner != Some(player_id) {
             return Err(CouldNotSend::NotYourPlanet)
         }
         let planet_queued_ships: usize = self._queued_commands.iter()
             .filter(|(_player, command)| command.source_planet_id == source_planet_id)
             .map(|(_player, command)| command.count)
             .sum();
-        let planet_remaining_ships = self._planets[source_planet_id].ships - planet_queued_ships;
+        let planet_remaining_ships = self._planets[source_planet_id.0].ships - planet_queued_ships;
         if planet_remaining_ships < count {
             return Err(CouldNotSend::NotEnoughShips)
         }
@@ -217,13 +225,13 @@ impl Game {
         Ok(())
     }
 
-    pub fn remaining_players(&self) -> HashSet<usize> {
-        let players_with_planets : HashSet<usize> = self._planets.iter().filter_map(|p| p.owner).collect();
-        let players_with_fleets : HashSet<usize> = self._fleets.iter().map(|f| f.owner).collect();
+    pub fn remaining_players(&self) -> HashSet<PlayerId> {
+        let players_with_planets : HashSet<PlayerId> = self._planets.iter().filter_map(|p| p.owner).collect();
+        let players_with_fleets : HashSet<PlayerId> = self._fleets.iter().map(|f| f.owner).collect();
         players_with_planets.union(&players_with_fleets).map(|p| *p).collect()
     }
 
-    pub fn get_winner(&self) -> Option<usize> {
+    pub fn get_winner(&self) -> Option<PlayerId> {
         let players = self.remaining_players();
         if players.len() == 1 {
             Some(*players.iter().next().unwrap())
@@ -232,33 +240,38 @@ impl Game {
         }
     }
 
-    pub fn planet_name(&self, index: usize) -> Option<String> {
-        PLANET_NAMES.chars().take(self._planets.len()).nth(index).map(|c| c.to_string())
-    }
-
-    pub fn get_planet_index(&self, name : &String) -> Result<usize, String> {
+    pub fn get_planet_id(&self, name : &String) -> Result<PlanetId, String> {
         if name.len() != 1 {
             Err("Planet names are a single character".to_string())
         } else {
             PLANET_NAMES.chars()
                         .take(self._planets.len())
                         .position(|c| c.to_string() == *name)
+                        .map(PlanetId)
                         .ok_or("no such planet".to_string())
         }
     }
 
-    pub fn planets(&self) -> std::slice::Iter<Planet> {
-        self._planets.iter()
+    pub fn planets(&self) -> impl Iterator<Item = (PlanetId, &Planet)> {
+        self._planets.iter().enumerate().map(|(id, planet)| (PlanetId(id), planet))
     }
-    pub fn planet(&self, id: usize) -> Result<&Planet, ()> {
-        Ok(&self._planets[id])
+    pub fn planet(&self, id: PlanetId) -> Result<&Planet, ()> {
+        if self._planets.len() <= id.0 {
+            Err(())
+        } else {
+            Ok(&self._planets[id.0])
+        }
     }
 
-    pub fn players(&self) -> &Vec<Player> {
-        &self._players
+    pub fn players(&self) -> impl Iterator<Item = (PlayerId, &Player)> {
+        self._players.iter().enumerate().map(|(id, player)| (PlayerId(id), player))
     }
-    pub fn player(&self, id: usize) -> Result<&Player, ()> {
-        Ok(&self._players[id])
+    pub fn player(&self, id: PlayerId) -> Result<&Player, ()> {
+        if self._players.len() <= id.0 {
+            Err(())
+        } else {
+            Ok(&self._players[id.0])
+        }
     }
 
     pub fn size(&self) -> (usize, usize) {

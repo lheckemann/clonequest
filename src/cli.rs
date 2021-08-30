@@ -1,8 +1,7 @@
-use std::{collections::HashSet, io};
-use std::io::Write;
+use std::io::{self, Write};
 use std::fmt;
 
-use crate::game::{Player, Game, distance, CouldNotSend, Planet, Message};
+use crate::game::{CouldNotSend, Game, Message, Planet, PlanetId, PlayerId, distance};
 
 const PLANET_NAMES : &'static str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -14,8 +13,8 @@ impl fmt::Display for CouldNotSend {
 
 pub struct Cli {
     game: Game,
-    current_player_id: usize,
-    players_to_make_moves: Vec<usize>,
+    current_player_id: PlayerId,
+    players_to_make_moves: Vec<PlayerId>,
 }
 
 fn print_game_map(game: &Game) {
@@ -25,7 +24,7 @@ fn print_game_map(game: &Game) {
             print!("│{}",
             game.planets()
                    .zip(PLANET_NAMES.chars())
-                   .filter(|(p, _)| p.pos == (x, y))
+                   .filter(|((_, p), _)| p.pos == (x, y))
                    .take(1).last()
                    .map(|(_p, c)| c.to_string())
                    .unwrap_or(" ".to_string())
@@ -37,10 +36,10 @@ fn print_game_map(game: &Game) {
 
 fn print_game_info(game: &Game, planet_names: &[String]) {
     println!(" Planet | Ships  | Power  | Prod   | Owner");
-    let print_planet = |(planet_index, planet): (usize, &Planet)| {
+    let print_planet = |(_, planet): (PlanetId, &Planet)| {
         println!(
             " {: ^6} | {: >6} | {: >6} | {: >6} | {}",
-            game.planet_name(planet_index).unwrap_or("?".to_string()),
+            planet.name,
             planet.ships,
             planet.strength,
             planet.production,
@@ -48,10 +47,10 @@ fn print_game_info(game: &Game, planet_names: &[String]) {
         )
     };
     if planet_names.is_empty() {
-        game.planets().enumerate().for_each(print_planet)
+        game.planets().for_each(print_planet)
     } else {
         let planets = planet_names.iter().filter_map(|tok| {
-            let planet_index = game.get_planet_index(tok).map_err(|e| println!("Planet {}: {}, skipping", tok, e)).ok();
+            let planet_index = game.get_planet_id(tok).map_err(|e| println!("Planet {}: {}, skipping", tok, e)).ok();
             planet_index.and_then(|i| game.planet(i).ok().map(|p| (i, p)))
         });
         planets.for_each(print_planet)
@@ -59,10 +58,10 @@ fn print_game_info(game: &Game, planet_names: &[String]) {
 }
 
 fn show_distances(game: &Game) {
-    show_distances_for(game, (0..game.planets().len()).collect())
+    show_distances_for(game, game.planets().map(|p| p.0).collect())
 }
 
-fn show_distances_for(game: &Game, planet_ids: Vec<usize>) {
+fn show_distances_for(game: &Game, planet_ids: Vec<PlanetId>) {
     let planets: Vec<&Planet> = planet_ids.iter().filter_map(|id| game.planet(*id).ok()).collect();
     print!("\\|");
     for p in planets.iter() {
@@ -84,9 +83,10 @@ fn show_distances_for(game: &Game, planet_ids: Vec<usize>) {
 
 impl Cli {
     pub fn new(game: Game) -> Cli {
+        let first_player_id = game.players().map(|(id, _)| id).min().expect("Game should have at least one player");
         let mut result = Cli {
             game,
-            current_player_id: 0,
+            current_player_id: first_player_id,
             players_to_make_moves: vec![],
         };
         result.next_player();
@@ -139,16 +139,16 @@ Player {}: ", self.game.player(self.current_player_id).unwrap().name);
             match message {
                 Message::AttackFailed(fleet) => {
                     let player = self.game.player(fleet.owner).map(|p| p.name.clone()).unwrap_or("<unknown>".into());
-                    let planet = self.game.planet_name(fleet.destination).unwrap_or("<unknown>".into());
+                    let planet = self.game.planet(fleet.destination).map(|p| p.name.clone()).unwrap_or("<unknown>".into());
                     println!("Fleet from player {} failed to take planet {}.", player, planet);
                 }
                 Message::AttackSucceeded(fleet) => {
                     let player = self.game.player(fleet.owner).map(|p| p.name.clone()).unwrap_or("<unknown>".into());
-                    let planet = self.game.planet_name(fleet.destination).unwrap_or("<unknown>".into());
+                    let planet = self.game.planet(fleet.destination).map(|p| p.name.clone()).unwrap_or("<unknown>".into());
                     println!("Fleet from player {} took over planet {}!", player, planet);
                 }
                 Message::ReinforcementsArrived(fleet) => {
-                    let planet = self.game.planet_name(fleet.destination).unwrap_or("<unknown>".into());
+                    let planet = self.game.planet(fleet.destination).map(|p| p.name.clone()).unwrap_or("<unknown>".into());
                     println!("Reinforcements of {} ships have arrived at planet {}.", fleet.ships, planet);
                 }
                 Message::PlayerEliminated(player) => {
@@ -177,15 +177,15 @@ Player {}: ", self.game.player(self.current_player_id).unwrap().name);
                 if tokens.len() != 4 {
                     return Err("Need a source and destination planet and a number of ships".to_string());
                 }
-                let src = self.game.get_planet_index(&tokens[1])?;
-                let dest = self.game.get_planet_index(&tokens[2])?;
+                let src = self.game.get_planet_id(&tokens[1])?;
+                let dest = self.game.get_planet_id(&tokens[2])?;
                 let count = usize::from_str_radix(tokens[3].as_str(), 10)
                                    .map_err(|_| "Invalid number of ships".to_string())?;
-                return self.game.queue_fleet(self.current_player_id, src, dest, count).map_err(|e| e.to_string());
+                return self.game.queue_fleet(*&self.current_player_id, src, dest, count).map_err(|e| e.to_string());
             },
             "d" => {
-                let chosen : Vec<usize> = tokens.iter().skip(1).filter_map(|tok| {
-                    self.game.get_planet_index(tok).map_err(|e| println!("Planet {}: {}, skipping", tok, e)).ok()
+                let chosen : Vec<PlanetId> = tokens.iter().skip(1).filter_map(|tok| {
+                    self.game.get_planet_id(tok).map_err(|e| println!("Planet {}: {}, skipping", tok, e)).ok()
                 }).collect();
                 if chosen.is_empty() {
                     show_distances(&self.game);
