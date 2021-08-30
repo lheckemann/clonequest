@@ -83,13 +83,13 @@ fn show_distances_for(game: &Game, planet_ids: Vec<PlanetId>) {
 
 impl Cli {
     pub fn new(game: Game) -> Cli {
-        let first_player_id = game.players().map(|(id, _)| id).min().expect("Game should have at least one player");
-        let mut result = Cli {
+        let player_ids : Vec<PlayerId> = game.players().map(|(id, _)| id).collect();
+        let first_player_id = player_ids.iter().min().expect("Game should have at least one player");
+        let result = Cli {
             game,
-            current_player_id: first_player_id,
-            players_to_make_moves: vec![],
+            current_player_id: *first_player_id,
+            players_to_make_moves: player_ids,
         };
-        result.next_player();
         result
     }
 
@@ -135,21 +135,19 @@ Player {}: ", self.game.player(self.current_player_id).unwrap().name);
 
     fn complete_turn(&mut self) {
         println!("\n\n\n----- Turn ended ------");
-        for message in self.game.end_turn() {
+        let messages = self.game.end_turn();
+        let player_name = |id| self.game.player(id).map(|p| p.name.clone()).unwrap_or("<unknown>".into());
+        let planet_name = |id| self.game.planet(id).map(|p| p.name.clone()).unwrap_or("<unknown>".into());
+        for message in messages {
             match message {
                 Message::AttackFailed(fleet) => {
-                    let player = self.game.player(fleet.owner).map(|p| p.name.clone()).unwrap_or("<unknown>".into());
-                    let planet = self.game.planet(fleet.destination).map(|p| p.name.clone()).unwrap_or("<unknown>".into());
-                    println!("Fleet from player {} failed to take planet {}.", player, planet);
+                    println!("Fleet from player {} failed to take planet {}.", player_name(fleet.owner), planet_name(fleet.destination));
                 }
                 Message::AttackSucceeded(fleet) => {
-                    let player = self.game.player(fleet.owner).map(|p| p.name.clone()).unwrap_or("<unknown>".into());
-                    let planet = self.game.planet(fleet.destination).map(|p| p.name.clone()).unwrap_or("<unknown>".into());
-                    println!("Fleet from player {} took over planet {}!", player, planet);
+                    println!("Fleet from player {} took over planet {}!", player_name(fleet.owner), planet_name(fleet.destination));
                 }
                 Message::ReinforcementsArrived(fleet) => {
-                    let planet = self.game.planet(fleet.destination).map(|p| p.name.clone()).unwrap_or("<unknown>".into());
-                    println!("Reinforcements of {} ships have arrived at planet {}.", fleet.ships, planet);
+                    println!("Reinforcements of {} ships have arrived at planet {}.", fleet.ships, planet_name(fleet.destination));
                 }
                 Message::PlayerEliminated(player) => {
                     println!("Player {} was eliminated!", player.name);
